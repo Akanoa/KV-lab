@@ -1,5 +1,6 @@
 use crate::header::HeaderMap;
-use actix_session::Session;
+use actix_session::{storage::CookieSessionStore, Session, SessionMiddleware};
+use actix_web::cookie::Key;
 use actix_web::web::Data;
 use actix_web::{get, web, App, HttpResponse, HttpServer};
 use eyre::WrapErr;
@@ -196,6 +197,10 @@ async fn main() {
                 oauth: client,
                 api_base_url,
             }))
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                Key::generate(),
+            ))
             .service(index)
             .service(login)
             .service(logout)
