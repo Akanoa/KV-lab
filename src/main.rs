@@ -86,9 +86,6 @@ fn read_user(api_base_url: &str, access_token: &AccessToken) -> eyre::Result<Use
     )
     .wrap_err("Unable to parse URL")?;
     let headers = HeaderMap::new();
-    //headers.insert("PRIVATE-TOKEN", access_token.secret().to_string().parse()?);
-
-    dbg!(&headers);
 
     let response = http_client(oauth2::HttpRequest {
         url,
@@ -97,10 +94,6 @@ fn read_user(api_base_url: &str, access_token: &AccessToken) -> eyre::Result<Use
         body: vec![],
     })
     .wrap_err("Unable to Get user details")?;
-
-    dbg!(&response.status_code);
-
-    println!("{}", String::from_utf8_lossy(&response.body));
 
     serde_json::from_slice(&response.body).wrap_err("Unable to deserialize")
 }
