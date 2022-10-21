@@ -100,10 +100,17 @@ async fn login(session: Session, data: web::Data<AppState>) -> HttpResponse {
 }
 
 fn read_user(api_base_url: &str, access_token: &AccessToken) -> eyre::Result<UserData> {
-    let url =
-        Url::parse(format!("{}/user", api_base_url).as_str()).wrap_err("Unable to parse URL")?;
-    let mut headers = HeaderMap::new();
-    headers.insert("PRIVATE-TOKEN", access_token.secret().to_string().parse()?);
+    let url = Url::parse(
+        format!(
+            "{}/user?access_token={}",
+            api_base_url,
+            access_token.secret()
+        )
+        .as_str(),
+    )
+    .wrap_err("Unable to parse URL")?;
+    let headers = HeaderMap::new();
+    //headers.insert("PRIVATE-TOKEN", access_token.secret().to_string().parse()?);
 
     dbg!(&headers);
 
