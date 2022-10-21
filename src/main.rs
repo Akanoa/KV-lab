@@ -140,6 +140,9 @@ async fn main() {
         let token_url = TokenUrl::new(format!("https://{}/oauth/token", oauth_server))
             .expect("Invalid token endpoint URL");
 
+        let redirect_url = env::var("GITLAB_SSO_REDIRECT_URL")
+            .expect("Missing GITLAB_SSO_REDIRECT_URL environment variable.");
+
         let api_base_url = format!("https://{}/api/v4", oauth_server);
 
         let client = BasicClient::new(
@@ -148,10 +151,7 @@ async fn main() {
             auth_url,
             Some(token_url),
         )
-        .set_redirect_uri(
-            RedirectUrl::new("http://127.0.0.1:5000/auth".to_string())
-                .expect("Invalid redirect URL"),
-        );
+        .set_redirect_uri(RedirectUrl::new(redirect_url).expect("Invalid redirect URL"));
 
         println!("Running");
 
@@ -170,6 +170,4 @@ async fn main() {
     .run()
     .await
     .expect("Unable to run");
-
-    println!("Hello, world!");
 }
