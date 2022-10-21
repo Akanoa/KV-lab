@@ -168,7 +168,6 @@ fn get_secret() -> Key {
 
 #[actix_rt::main]
 async fn main() {
-    std::env::set_var("RUST_LOG", "debug");
     env_logger::init();
 
     let app_host = env::var("APP_HOST").expect("Missing APP_HOST  environment variable.");
