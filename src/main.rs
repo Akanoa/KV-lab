@@ -125,7 +125,7 @@ fn read_user(api_base_url: &str, access_token: &AccessToken) -> eyre::Result<Use
 
     dbg!(&response.status_code);
 
-    dbg!(String::from_utf8_lossy(&response.body));
+    println!("{}", String::from_utf8_lossy(&response.body));
 
     serde_json::from_slice(&response.body).wrap_err("Unable to deserialize")
 }
