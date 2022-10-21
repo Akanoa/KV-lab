@@ -115,7 +115,7 @@ fn read_user(api_base_url: &str, access_token: &AccessToken) -> eyre::Result<Use
     })
     .wrap_err("Unable to Get user details")?;
 
-    dbg!(&response);
+    dbg!(&response.status_code);
 
     serde_json::from_slice(&response.body).wrap_err("Unable to deserialize")
 }
