@@ -3,6 +3,7 @@ use actix_session::Session;
 use actix_web::web::Data;
 use actix_web::{get, web, App, HttpResponse, HttpServer};
 use eyre::WrapErr;
+use log::debug;
 use oauth2::basic::BasicClient;
 use oauth2::http::{header, Method};
 use oauth2::reqwest::http_client;
@@ -49,9 +50,13 @@ async fn login(session: Session, data: web::Data<AppState>) -> HttpResponse {
     // https://oa.dnc.global/-fr-.html?page=unarticle&id_article=148
     let (pkce_challenge, pcke_verifier) = PkceCodeChallenge::new_random_sha256();
 
-    session
+    let a = session
         .insert("pkce_verifier", pcke_verifier)
         .wrap_err("Unable to save pkce verifier");
+
+    if let Err(err) = a {
+        debug!("{:?}", err)
+    }
 
     let (auth_url, _) = &data
         .oauth
