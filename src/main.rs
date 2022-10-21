@@ -104,6 +104,9 @@ fn read_user(api_base_url: &str, access_token: &AccessToken) -> eyre::Result<Use
         Url::parse(format!("{}/user", api_base_url).as_str()).wrap_err("Unable to parse URL")?;
     let mut headers = HeaderMap::new();
     headers.insert("PRIVATE-TOKEN", access_token.secret().to_string().parse()?);
+
+    dbg!(&headers);
+
     let response = http_client(oauth2::HttpRequest {
         url,
         method: Method::GET,
