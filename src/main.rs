@@ -29,7 +29,35 @@ struct AuthRequest {
 
 #[derive(Deserialize, Debug)]
 pub struct UserData {
+    id: u64,
+    name: String,
+    username: String,
+    state: String,
+    avatar_url: String,
+    web_url: String,
+    created_at: String,
+    bio: String,
+    location: String,
+    skype: String,
+    linkedin: String,
+    twitter: String,
+    website_url: String,
+    organization: String,
+    last_sign_in_at: String,
+    confirmed_at: String,
+    last_activity_on: String,
     email: String,
+    theme_id: u32,
+    color_scheme_id: u32,
+    projects_limit: u32,
+    current_sign_in_at: String,
+    identities: Vec<String>,
+    can_create_group: bool,
+    can_create_project: bool,
+    two_factor_enabled: bool,
+    external: bool,
+    private_profile: bool,
+    is_admin: bool,
 }
 
 #[get("/")]
@@ -121,9 +149,10 @@ async fn auth(
                                 r#"<html>
         <head><title>OAuth2 Test</title></head>
         <body>
-            You are logged
+            Welcome {}
         </body>
-    </html>"#
+    </html>"#,
+                                user_info.name
                             );
 
                             HttpResponse::Ok().body(html)
