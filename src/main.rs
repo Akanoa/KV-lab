@@ -115,14 +115,17 @@ async fn auth(
                 }
             }
         }
-        Err(_err) => HttpResponse::BadRequest().finish(),
+        Err(err) => {
+            log::debug!("{:?}", err);
+            log::warn!("Unable to get user data");
+            HttpResponse::BadRequest().finish()
+        }
     }
 }
 
 #[actix_rt::main]
 async fn main() {
     std::env::set_var("RUST_LOG", "debug");
-    std::env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
     let app_host = env::var("APP_HOST").expect("Missing APP_HOST  environment variable.");
