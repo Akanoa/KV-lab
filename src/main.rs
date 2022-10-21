@@ -168,6 +168,11 @@ async fn auth(
     }
 }
 
+fn get_secret() -> Key {
+    let secret = env::var("APP_SECRET").expect("Missing APP_SECRET environment variable");
+    Key::from(secret.as_bytes())
+}
+
 #[actix_rt::main]
 async fn main() {
     std::env::set_var("RUST_LOG", "debug");
@@ -218,7 +223,7 @@ async fn main() {
             }))
             .wrap(SessionMiddleware::new(
                 CookieSessionStore::default(),
-                Key::generate(),
+                get_secret(),
             ))
             .service(index)
             .service(login)
