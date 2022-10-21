@@ -97,34 +97,42 @@ async fn auth(
 
     let pkce_verifier = session
         .get("pkce_verifier")
-        .expect("Unable to get pkce verifier from session")
-        .expect("Non pkce verifier found");
+        .expect("Unable to get pkce verifier from session");
 
-    let token = &data
-        .oauth
-        .exchange_code(code)
-        .set_pkce_verifier(pkce_verifier)
-        .request(http_client);
-    match token {
-        Ok(token) => {
-            let user_info = read_user(&data.api_base_url, token.access_token());
+    match pkce_verifier {
+        Some(pkce_verifier) => {
+            let token = &data
+                .oauth
+                .exchange_code(code)
+                .set_pkce_verifier(pkce_verifier)
+                .request(http_client);
+            match token {
+                Ok(token) => {
+                    let user_info = read_user(&data.api_base_url, token.access_token());
 
-            match user_info {
-                Ok(user_info) => {
-                    if let Err(_) = session.insert("login", user_info.email.clone()) {
-                        return HttpResponse::InternalServerError().finish();
-                    }
+                    match user_info {
+                        Ok(user_info) => {
+                            if let Err(_) = session.insert("login", user_info.email.clone()) {
+                                return HttpResponse::InternalServerError().finish();
+                            }
 
-                    let html = format!(
-                        r#"<html>
+                            let html = format!(
+                                r#"<html>
         <head><title>OAuth2 Test</title></head>
         <body>
             You are logged
         </body>
     </html>"#
-                    );
+                            );
 
-                    HttpResponse::Ok().body(html)
+                            HttpResponse::Ok().body(html)
+                        }
+                        Err(err) => {
+                            log::error!("{:?}", err);
+                            log::warn!("Unable to get user data");
+                            HttpResponse::BadRequest().finish()
+                        }
+                    }
                 }
                 Err(err) => {
                     log::error!("{:?}", err);
@@ -133,9 +141,8 @@ async fn auth(
                 }
             }
         }
-        Err(err) => {
-            log::error!("{:?}", err);
-            log::warn!("Unable to get user data");
+        None => {
+            dbg!("Unable to found pkce verifier");
             HttpResponse::BadRequest().finish()
         }
     }
