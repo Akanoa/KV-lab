@@ -44,10 +44,14 @@ async fn logout(session: Session) -> HttpResponse {
 }
 
 #[get("/login")]
-async fn login(data: web::Data<AppState>) -> HttpResponse {
+async fn login(session: Session, data: web::Data<AppState>) -> HttpResponse {
     // Generate a PKCE challenge
     // https://oa.dnc.global/-fr-.html?page=unarticle&id_article=148
-    let (pkce_challenge, _) = PkceCodeChallenge::new_random_sha256();
+    let (pkce_challenge, pcke_verifier) = PkceCodeChallenge::new_random_sha256();
+
+    session
+        .insert("pkce_verifier", pcke_verifier)
+        .wrap_err("Unable to save pkce verifier");
 
     let (auth_url, _) = &data
         .oauth
@@ -86,7 +90,16 @@ async fn auth(
     let code = AuthorizationCode::new(params.code.clone());
     let _state = CsrfToken::new(params.state.clone());
 
-    let token = &data.oauth.exchange_code(code).request(http_client);
+    let pkce_verifier = session
+        .get("pkce_verifier")
+        .expect("Unable to get pkce verifier from session")
+        .expect("Non pkce verifier found");
+
+    let token = &data
+        .oauth
+        .exchange_code(code)
+        .set_pkce_verifier(pkce_verifier)
+        .request(http_client);
     match token {
         Ok(token) => {
             let user_info = read_user(&data.api_base_url, token.access_token());
@@ -109,14 +122,14 @@ async fn auth(
                     HttpResponse::Ok().body(html)
                 }
                 Err(err) => {
-                    log::debug!("{:?}", err);
+                    log::error!("{:?}", err);
                     log::warn!("Unable to get user data");
                     HttpResponse::BadRequest().finish()
                 }
             }
         }
         Err(err) => {
-            log::debug!("{:?}", err);
+            log::error!("{:?}", err);
             log::warn!("Unable to get user data");
             HttpResponse::BadRequest().finish()
         }
