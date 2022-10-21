@@ -121,6 +121,10 @@ async fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
+    let app_host = env::var("APP_HOST").expect("Missing APP_HOST  environment variable.");
+
+    let app_port = env::var("APP_PORT").expect("Missing APP_PORT  environment variable.");
+
     HttpServer::new(|| {
         let application_id = ClientId::new(
             env::var("GITLAB_SSO_APP_ID").expect("Missing GITLAB_SSO_APP_ID environment variable."),
@@ -165,8 +169,8 @@ async fn main() {
             .service(logout)
             .service(auth)
     })
-    .bind("127.0.0.1:5000")
-    .expect("Can not bind to port 5000")
+    .bind(format!("{}:{}", app_host, app_port))
+    .expect(format!("Can not bind to port {}", app_port).as_str())
     .run()
     .await
     .expect("Unable to run");
