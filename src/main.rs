@@ -108,7 +108,11 @@ async fn auth(
 
                     HttpResponse::Ok().body(html)
                 }
-                Err(_) => HttpResponse::BadRequest().finish(),
+                Err(err) => {
+                    log::debug!("{:?}", err);
+                    log::warn!("Unable to get user data");
+                    HttpResponse::BadRequest().finish()
+                }
             }
         }
         Err(_err) => HttpResponse::BadRequest().finish(),
