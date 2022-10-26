@@ -1,8 +1,10 @@
 use crate::header::HeaderMap;
+use actix_files as fs;
+use actix_files::NamedFile;
 use actix_session::{storage::CookieSessionStore, Session, SessionMiddleware};
 use actix_web::cookie::Key;
 use actix_web::web::Data;
-use actix_web::{get, web, App, HttpResponse, HttpServer};
+use actix_web::{get, web, App, HttpResponse, HttpServer, Result};
 use eyre::WrapErr;
 use log::debug;
 use oauth2::basic::BasicClient;
@@ -36,8 +38,18 @@ pub struct UserData {
 }
 
 #[get("/")]
-async fn index() -> HttpResponse {
-    HttpResponse::Ok().body("Hello")
+async fn index(session: Session) -> Result<fs::NamedFile> {
+    let login_value = session
+        .get::<String>("login")
+        .map_err(actix_web::error::ErrorBadRequest)?;
+
+    //let login_value = Some("toto");
+
+    if login_value.is_some() {
+        Ok(NamedFile::open("assets/static/index.html")?)
+    } else {
+        Ok(NamedFile::open("assets/static/login.html")?)
+    }
 }
 
 #[get("/logout")]
@@ -138,7 +150,9 @@ async fn auth(
                                 user_info.name
                             );
 
-                            HttpResponse::Ok().body(html)
+                            HttpResponse::Found()
+                                .append_header(("Location", "/"))
+                                .finish()
                         }
                         Err(err) => {
                             log::error!("{:?}", err);
@@ -217,6 +231,11 @@ async fn main() {
                 CookieSessionStore::default(),
                 get_secret(),
             ))
+            .service(
+                fs::Files::new("/static", "./assets/static")
+                    .show_files_listing()
+                    .index_file("login.html"),
+            )
             .service(index)
             .service(login)
             .service(logout)
