@@ -7,8 +7,38 @@
     <title>Biscuit inventory!</title>
 </head>
 <body>
+
+<template id="tenant">           <tr>
+    <th scope="row" class="tenant_name">Toto</th>
+    <th scope="row" class="tenant_description">Mon premier biscuit</th>
+    <td><button class="tenant_copy">Copy</button></td>
+    <td>
+        <button class="tenant_delete">Delete ⛔</button>
+    </td>
+</tr></template>
+
     <main class="container">
-        Welcome
+
+        <form >
+            <label for="description">Create new Biscuit</label>
+            <input id="description"  placeholder="Description" type="text">
+            <button onclick="create_tenant(this)">Create Biscuit  🥠</button>
+        </form>
+
+        <table role="grid">
+            <thead>
+            <tr>
+                <th scope="col">Tenant</th>
+                <th scope="col">Description</th>
+                <th scope="col">Biscuit</th>
+                <th scope="col">Action</th>
+            </tr>
+            </thead>
+            <tbody id="tenants">
+
+            </tbody>
+        </table>
+
     </main>
     <script type="application/javascript" src="/static/main.js"></script>
 </body>

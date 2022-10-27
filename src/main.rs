@@ -3,10 +3,12 @@ use actix_files as fs;
 use actix_files::NamedFile;
 use actix_session::{storage::CookieSessionStore, Session, SessionMiddleware};
 use actix_web::cookie::Key;
-use actix_web::web::Data;
-use actix_web::{get, web, App, HttpResponse, HttpServer, Result};
+use actix_web::error::InternalError;
+use actix_web::web::{Data, Json};
+use actix_web::{delete, get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use eyre::WrapErr;
 use log::debug;
+use nanoid::nanoid;
 use oauth2::basic::BasicClient;
 use oauth2::http::{header, Method};
 use oauth2::reqwest::http_client;
@@ -15,12 +17,38 @@ use oauth2::{
     AccessToken, AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge,
     RedirectUrl, Scope, TokenResponse, TokenUrl,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
+use std::sync::Mutex;
+
+#[derive(Serialize)]
+struct Identitity {
+    name: String,
+    tokens: Vec<Token>,
+}
+
+#[derive(Serialize, Clone)]
+struct Token {
+    description: String,
+    tenant: String,
+    token: String,
+}
+
+#[derive(Deserialize)]
+struct CreateData {
+    description: String,
+}
+
+#[derive(Deserialize)]
+struct DeleteData {
+    tenant: String,
+}
 
 struct AppState {
     oauth: BasicClient,
     api_base_url: String,
+    tokens: HashMap<String, Token>,
 }
 
 #[derive(Deserialize)]
@@ -43,7 +71,7 @@ async fn index(session: Session) -> Result<fs::NamedFile> {
         .get::<String>("login")
         .map_err(actix_web::error::ErrorBadRequest)?;
 
-    //let login_value = Some("toto");
+    let login_value = Some("toto");
 
     if login_value.is_some() {
         Ok(NamedFile::open("assets/static/index.html")?)
@@ -58,6 +86,82 @@ async fn logout(session: Session) -> HttpResponse {
     HttpResponse::Found()
         .append_header((header::LOCATION, "/".to_string()))
         .finish()
+}
+
+#[get("/api/list")]
+async fn list(app: Data<Mutex<AppState>>) -> Result<impl Responder> {
+    if let Ok(guard) = app.lock() {
+        let tokens = guard
+            .tokens
+            .values()
+            .into_iter()
+            .map(|c| c.clone())
+            .collect::<Vec<Token>>();
+
+        let identity = Identitity {
+            name: "toto".to_string(),
+            tokens,
+        };
+        Ok(Json(identity))
+    } else {
+        Err(actix_web::error::ErrorInternalServerError(
+            "Unable to get identity",
+        ))
+    }
+}
+
+#[delete("/api/delete")]
+async fn delete(form: web::Json<DeleteData>, app: Data<Mutex<AppState>>) -> Result<impl Responder> {
+    if let Ok(mut guard) = app.lock() {
+        guard.tokens.remove(&form.tenant);
+
+        let tokens = guard
+            .tokens
+            .values()
+            .into_iter()
+            .map(|c| c.clone())
+            .collect::<Vec<Token>>();
+
+        let identity = Identitity {
+            name: "toto".to_string(),
+            tokens,
+        };
+        Ok(Json(identity))
+    } else {
+        Err(actix_web::error::ErrorInternalServerError(
+            "Unable to get identity",
+        ))
+    }
+}
+
+#[post("/api/create")]
+async fn create(form: web::Json<CreateData>, app: Data<Mutex<AppState>>) -> Result<impl Responder> {
+    let token = Token {
+        description: form.description.to_string(),
+        tenant: nanoid!(5, &nanoid::alphabet::SAFE),
+        token: nanoid!(128, &nanoid::alphabet::SAFE),
+    };
+
+    if let Ok(mut guard) = app.lock() {
+        guard.tokens.insert(token.tenant.to_string(), token);
+
+        let tokens = guard
+            .tokens
+            .values()
+            .into_iter()
+            .map(|c| c.clone())
+            .collect::<Vec<Token>>();
+
+        let identity = Identitity {
+            name: "toto".to_string(),
+            tokens,
+        };
+        Ok(Json(identity))
+    } else {
+        Err(actix_web::error::ErrorInternalServerError(
+            "Unable to create token",
+        ))
+    }
 }
 
 #[get("/login")]
@@ -140,16 +244,6 @@ async fn auth(
                                 return HttpResponse::InternalServerError().finish();
                             }
 
-                            let html = format!(
-                                r#"<html>
-        <head><title>OAuth2 Test</title></head>
-        <body>
-            Welcome {}
-        </body>
-    </html>"#,
-                                user_info.name
-                            );
-
                             HttpResponse::Found()
                                 .append_header(("Location", "/"))
                                 .finish()
@@ -182,6 +276,7 @@ fn get_secret() -> Key {
 
 #[actix_rt::main]
 async fn main() {
+    std::env::set_var("RUST_LOG", "debug");
     env_logger::init();
 
     let app_host = env::var("APP_HOST").expect("Missing APP_HOST  environment variable.");
@@ -223,10 +318,11 @@ async fn main() {
         println!("Running");
 
         App::new()
-            .app_data(Data::new(AppState {
+            .app_data(Data::new(Mutex::new(AppState {
                 oauth: client,
                 api_base_url,
-            }))
+                tokens: HashMap::new(),
+            })))
             .wrap(SessionMiddleware::new(
                 CookieSessionStore::default(),
                 get_secret(),
@@ -240,6 +336,9 @@ async fn main() {
             .service(login)
             .service(logout)
             .service(auth)
+            .service(create)
+            .service(list)
+            .service(delete)
     })
     .bind(format!("{}:{}", app_host, app_port))
     .expect(format!("Can not bind to port {}", app_port).as_str())
