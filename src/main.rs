@@ -1,9 +1,10 @@
 use crate::header::HeaderMap;
 use actix_files as fs;
 use actix_files::NamedFile;
-use actix_session::{storage::CookieSessionStore, Session, SessionMiddleware};
+use actix_session::{storage::CookieSessionStore, Session, SessionExt, SessionMiddleware};
 use actix_web::cookie::Key;
 use actix_web::error::InternalError;
+use actix_web::guard::GuardContext;
 use actix_web::web::{Data, Json};
 use actix_web::{delete, get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use eyre::WrapErr;
@@ -65,6 +66,14 @@ pub struct UserData {
     email: String,
 }
 
+fn api_guard(ctx: &GuardContext) -> bool {
+    if let Ok(Some(_)) = ctx.get_session().get::<String>("login") {
+        true
+    } else {
+        false
+    }
+}
+
 #[get("/")]
 async fn index(session: Session) -> Result<fs::NamedFile> {
     let login_value = session
@@ -86,7 +95,7 @@ async fn logout(session: Session) -> HttpResponse {
         .finish()
 }
 
-#[get("/api/list")]
+#[get("/api/list", guard = "api_guard")]
 async fn list(app: Data<Mutex<AppState>>) -> Result<impl Responder> {
     if let Ok(guard) = app.lock() {
         let tokens = guard
@@ -108,7 +117,7 @@ async fn list(app: Data<Mutex<AppState>>) -> Result<impl Responder> {
     }
 }
 
-#[delete("/api/delete")]
+#[delete("/api/delete", guard = "api_guard")]
 async fn delete(form: web::Json<DeleteData>, app: Data<Mutex<AppState>>) -> Result<impl Responder> {
     if let Ok(mut guard) = app.lock() {
         guard.tokens.remove(&form.tenant);
@@ -132,7 +141,7 @@ async fn delete(form: web::Json<DeleteData>, app: Data<Mutex<AppState>>) -> Resu
     }
 }
 
-#[post("/api/create")]
+#[post("/api/create", guard = "api_guard")]
 async fn create(form: web::Json<CreateData>, app: Data<Mutex<AppState>>) -> Result<impl Responder> {
     let token = Token {
         description: form.description.to_string(),
