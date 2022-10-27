@@ -71,8 +71,6 @@ async fn index(session: Session) -> Result<fs::NamedFile> {
         .get::<String>("login")
         .map_err(actix_web::error::ErrorBadRequest)?;
 
-    let login_value = Some("toto");
-
     if login_value.is_some() {
         Ok(NamedFile::open("assets/static/index.html")?)
     } else {
