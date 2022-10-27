@@ -163,7 +163,7 @@ async fn create(form: web::Json<CreateData>, app: Data<Mutex<AppState>>) -> Resu
 }
 
 #[get("/login")]
-async fn login(session: Session, data: web::Data<AppState>) -> HttpResponse {
+async fn login(session: Session, data: web::Data<Mutex<AppState>>) -> HttpResponse {
     // Generate a PKCE challenge
     // https://oa.dnc.global/-fr-.html?page=unarticle&id_article=148
     let (pkce_challenge, pcke_verifier) = PkceCodeChallenge::new_random_sha256();
@@ -176,17 +176,21 @@ async fn login(session: Session, data: web::Data<AppState>) -> HttpResponse {
         debug!("{:?}", err)
     }
 
-    let (auth_url, _) = &data
-        .oauth
-        .authorize_url(CsrfToken::new_random)
-        .add_scope(Scope::new("profile".to_string()))
-        .add_scope(Scope::new("read_user".to_string()))
-        .set_pkce_challenge(pkce_challenge)
-        .url();
+    if let Ok(data) = data.lock() {
+        let (auth_url, _) = &data
+            .oauth
+            .authorize_url(CsrfToken::new_random)
+            .add_scope(Scope::new("profile".to_string()))
+            .add_scope(Scope::new("read_user".to_string()))
+            .set_pkce_challenge(pkce_challenge)
+            .url();
 
-    HttpResponse::Found()
-        .append_header((header::LOCATION, auth_url.to_string()))
-        .finish()
+        HttpResponse::Found()
+            .append_header((header::LOCATION, auth_url.to_string()))
+            .finish()
+    } else {
+        HttpResponse::BadRequest().finish()
+    }
 }
 
 fn read_user(api_base_url: &str, access_token: &AccessToken) -> eyre::Result<UserData> {
@@ -215,7 +219,7 @@ fn read_user(api_base_url: &str, access_token: &AccessToken) -> eyre::Result<Use
 #[get("/auth")]
 async fn auth(
     session: Session,
-    data: web::Data<AppState>,
+    data: web::Data<Mutex<AppState>>,
     params: web::Query<AuthRequest>,
 ) -> HttpResponse {
     let code = AuthorizationCode::new(params.code.clone());
@@ -225,45 +229,49 @@ async fn auth(
         .get("pkce_verifier")
         .expect("Unable to get pkce verifier from session");
 
-    match pkce_verifier {
-        Some(pkce_verifier) => {
-            let token = &data
-                .oauth
-                .exchange_code(code)
-                .set_pkce_verifier(pkce_verifier)
-                .request(http_client);
-            match token {
-                Ok(token) => {
-                    let user_info = read_user(&data.api_base_url, token.access_token());
+    if let Ok(data) = data.lock() {
+        match pkce_verifier {
+            Some(pkce_verifier) => {
+                let token = &data
+                    .oauth
+                    .exchange_code(code)
+                    .set_pkce_verifier(pkce_verifier)
+                    .request(http_client);
+                match token {
+                    Ok(token) => {
+                        let user_info = read_user(&data.api_base_url, token.access_token());
 
-                    match user_info {
-                        Ok(user_info) => {
-                            if let Err(_) = session.insert("login", user_info.email.clone()) {
-                                return HttpResponse::InternalServerError().finish();
+                        match user_info {
+                            Ok(user_info) => {
+                                if let Err(_) = session.insert("login", user_info.email.clone()) {
+                                    return HttpResponse::InternalServerError().finish();
+                                }
+
+                                HttpResponse::Found()
+                                    .append_header(("Location", "/"))
+                                    .finish()
                             }
-
-                            HttpResponse::Found()
-                                .append_header(("Location", "/"))
-                                .finish()
-                        }
-                        Err(err) => {
-                            log::error!("{:?}", err);
-                            log::warn!("Unable to get user data");
-                            HttpResponse::BadRequest().finish()
+                            Err(err) => {
+                                log::error!("{:?}", err);
+                                log::warn!("Unable to get user data");
+                                HttpResponse::BadRequest().finish()
+                            }
                         }
                     }
-                }
-                Err(err) => {
-                    log::error!("{:?}", err);
-                    log::warn!("Unable to get user data");
-                    HttpResponse::BadRequest().finish()
+                    Err(err) => {
+                        log::error!("{:?}", err);
+                        log::warn!("Unable to get user data");
+                        HttpResponse::BadRequest().finish()
+                    }
                 }
             }
+            None => {
+                dbg!("Unable to found pkce verifier");
+                HttpResponse::BadRequest().finish()
+            }
         }
-        None => {
-            dbg!("Unable to found pkce verifier");
-            HttpResponse::BadRequest().finish()
-        }
+    } else {
+        HttpResponse::BadRequest().finish()
     }
 }
 
